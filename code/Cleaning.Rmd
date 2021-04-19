@@ -1,0 +1,1214 @@
+---
+output:
+  md_document:
+    variant: markdown_github
+---
+
+# Purpose
+
+The purpose of this code is to clean a dataset of deaths from the Spanish Flu in South Africa
+
+Directions from Johan:  Essential: sex, race, age, and cause of death. 
+                        Nice to haves: occupation and duration of illness.
+
+# Setup
+
+Load in coding scripts
+
+```{r}
+
+rm(list = ls()) # Clean your environment:
+
+library(pacman)
+# p_load(tidyverse, lubridate, tm, readxl, RCurl, stringdist, naniar, tidytext, scales, stringr, glue)
+# library(ggthemes)
+
+p_load(tidyverse, lubridate, glue, readxl, stringdist)
+
+```
+
+
+# Data loading
+
+Data is in excel format
+
+```{r}
+
+POCQ <- read_excel("data/Kimberley to combine.xlsx")
+
+
+
+# replace NA with NA for R. Note that I've replaced the . and - with NA in excel. If you haven't,  simply add "." and "-" into the replace command
+# POCQ <- POCQ %>% 
+  # replace_with_na_all(condition = ~. == "NA")
+ 
+    
+```
+
+# Age
+
+```{r}
+
+# first we trim the whitespace and remove the punctiation
+POCQ <- POCQ %>% 
+    mutate(Age = trimws(Age),
+           # before we get rid of punctuation
+           Age = str_replace(string = Age, pattern = "1/2", replacement = ".5"),
+           Age = gsub('[[:punct:] ]+',' ',Age))
+
+POCQ <- POCQ %>% 
+    mutate(Age = tolower(Age))
+
+# what words remain?
+library(tidytext)
+words_age <- POCQ %>% 
+  select(Age) %>% 
+  unnest_tokens(word, Age) %>% 
+  mutate(word = gsub('[[:digit:]]+', '', word)) %>% 
+  count(word, sort = T)
+  
+# removing and replacing mistakes in transcription
+POCQ <- POCQ %>%
+  mutate(Age = str_replace(string = Age, pattern = "about", replacement = "")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "abt", replacement = "")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = " an ", replacement = "")) %>% 
+  mutate(Age = str_replace_all(string = Age, pattern = "and", replacement = "")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "jaar", replacement = "years")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "jaren", replacement = "years")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "approx", replacement = "")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "maanden", replacement = "months")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "maande", replacement = "months")) %>%     
+  mutate(Age = str_replace(string = Age, pattern = "omtrent", replacement = "")) %>%     
+  mutate(Age = str_replace(string = Age, pattern = "omtrent", replacement = "")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "dagen", replacement = "days")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "yr", replacement = "years")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "blank", replacement = "")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "unknown", replacement = "")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "half", replacement = ".5")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "old", replacement = "")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "few", replacement = "5")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "jaaren", replacement = "years")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "jare", replacement = "years")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "maand", replacement = "months")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "maand", replacement = "months")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "onbekend", replacement = "")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "tears", replacement = "years")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "eyars", replacement = "years")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "dae", replacement = "days")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "enige", replacement = "one")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "yeara", replacement = "years")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "yeas", replacement = "years")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "almost", replacement = "")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "estimated", replacement = "")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "omtren", replacement = "")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "probably", replacement = "")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "reputed", replacement = "")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "yeaers", replacement = "years")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "yeares", replacement = "years")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "yers", replacement = "years")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "yrs", replacement = "years")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "yearsen", replacement = "years")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "one", replacement = "1")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "montha", replacement = "months"))  
+# I got to 98 on the list
+
+POCQ <- POCQ %>%
+  mutate(Age = str_replace(string = Age, pattern = "twenty", replacement = "20")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "thirty", replacement = "30")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "forty", replacement = "40")) %>%     
+  mutate(Age = str_replace(string = Age, pattern = "fifty", replacement = "50")) %>%     
+  mutate(Age = str_replace(string = Age, pattern = "sixty", replacement = "60")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "seventy", replacement = "70")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "eighty", replacement = "80")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "ninety", replacement = "90")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "one", replacement = "1")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "two", replacement = "2")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "three", replacement = "3")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "four", replacement = "4")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "five", replacement = "5")) %>% 
+  mutate(Age = str_replace(string = Age, pattern = "six", replacement = "6")) %>%   
+  mutate(Age = str_replace(string = Age, pattern = "seven", replacement = "7")) %>%     
+  mutate(Age = str_replace(string = Age, pattern = "eight", replacement = "8")) %>%     
+  mutate(Age = str_replace(string = Age, pattern = "nine", replacement = "9")) %>%  
+  mutate(Age = str_replace(string = Age, pattern = "ten", replacement = "10")) 
+
+
+# digits
+POCQ <- POCQ %>%
+  mutate(Age = str_replace(string = Age, pattern = "½", replacement = ".5")) %>%
+  mutate(Age = str_replace(string = Age, pattern = "¼", replacement = ".25"),
+         Age = str_squish(Age))
+
+# test <- tibble(x = c("5", "5 years", "5 months"))
+# 
+# 
+# 
+# test %>% 
+#   mutate(x = ifelse(!str_detect(x, "[a-z]"), str_c(x, "years", sep = " "), x))
+
+# case when age has no "years" along with it
+POCQ <- POCQ %>% 
+    mutate(Age = ifelse(!str_detect(Age, "[a-z]"), str_c(Age, "years", sep = " "), Age))
+
+# we mutate age to be a uniform format, creating age in days and in years
+POCQ <- POCQ %>% 
+    mutate(age_days = round(as.numeric(as.period(Age), "days"), 0),
+           age_years = round(as.numeric(as.period(Age), "years"), 2))
+
+
+
+```
+
+# Day, Month, Year of death
+
+```{r}
+
+words_day_of_death <- POCQ %>% 
+  select(`Day of death`) %>% 
+  unnest_tokens(word, `Day of death`) %>% 
+  mutate(word = gsub('[[:digit:]]+', '', word)) %>% 
+  count(word, sort = T)
+
+POCQ <- POCQ %>%
+  mutate(`Day of death` = str_replace(string = `Day of death`, pattern = "about", replacement = ""),
+         `Day of death` = parse_number(`Day of death`))
+
+words_month_of_death <- POCQ %>% 
+  select(`Month of death`) %>% 
+  unnest_tokens(word, `Month of death`) %>% 
+  mutate(word = gsub('[[:digit:]]+', '', word)) %>% 
+  count(word, sort = T)
+
+POCQ <- POCQ %>%
+  mutate(`Month of death` = str_replace(string = `Month of death`, pattern = "oktober", replacement = "october"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "desember", replacement = "december"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "januarie", replacement = "january"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "mei", replacement = "may"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "februarie", replacement = "february"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "julie", replacement = "july"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "maart", replacement = "march"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "juni", replacement = "june"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "junie", replacement = "june"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "juny", replacement = "june"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "dectzember", replacement = "december"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "deetzember", replacement = "december"),
+         `Month of death` = str_replace(string = `Month of death`, pattern = "januari", replacement = "january"))
+
+words_year_of_death <- POCQ %>% 
+  select(`Year of death`) %>% 
+  unnest_tokens(word, `Year of death`) %>% 
+  mutate(word = gsub('[[:digit:]]+', '', word)) %>% 
+  count(word, sort = T)
+
+POCQ <- POCQ %>%
+  mutate(`Year of death` = parse_number(`Year of death`))
+
+
+POCQ <- POCQ %>%
+  mutate(death_date = glue("{`Day of death`} - {`Month of death`} - {`Year of death`}"),
+         death_date = dmy(death_date))
+
+
+
+```
+
+
+
+# Duration of Last Illness (DOLI)
+
+```{r}
+# first we convert the text to lower case, trim the whitespace and remove the punctiation
+POCQ <- POCQ %>% 
+    mutate(`Duration of last illness` = trimws(`Duration of last illness`),
+                      # before we get rid of punctuation
+           `Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "1/2", replacement = ".5"),
+           `Duration of last illness` = gsub('[[:punct:] ]+',' ',`Duration of last illness`))
+
+POCQ <- POCQ %>% 
+    mutate(`Duration of last illness` = tolower(`Duration of last illness`))
+
+words_DOLI <- POCQ %>% 
+  select(`Duration of last illness`) %>% 
+  unnest_tokens(word, `Duration of last illness`) %>% 
+  mutate(word = gsub('[[:digit:]]+', '', word)) %>% 
+  count(word, sort = T)
+
+# removing and replacing mistakes in transcription
+POCQ <- POCQ %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "one", replacement = "1")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "sudden", replacement = "5 hours")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "blank", replacement = "")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "none", replacement = "")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "several", replacement = "5")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "dagen", replacement = "days")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "some", replacement = "5")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "abt", replacement = "")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "unknown", replacement = "")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "indefinite", replacement = "")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "few", replacement = "5")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "suddenly", replacement = "5 hours")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "maanden", replacement = "months")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "omtrent", replacement = "")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "approx", replacement = "")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "enige", replacement = "1")) %>%  
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "weken", replacement = "weeks"))  %>% 
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "weken", replacement = "weeks")) %>%  
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "dae", replacement = "days")) %>% 
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "maande", replacement = "months")) %>%   
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "fortnight", replacement = "2 weeks")) %>% 
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "maand", replacement = "months")) %>%   
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "instantaneous", replacement = "5 hours")) %>%   
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "dag", replacement = "day")) %>%   
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "nil	", replacement = "")) %>%   
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "half", replacement = ".5")) %>%   
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "immediately", replacement = "5 hours")) %>%   
+    mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "three", replacement = "3")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "two", replacement = "2")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "jaar", replacement = "years")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "night", replacement = "day")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "uur", replacement = "year")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "circa", replacement = "")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "een", replacement = "1")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "four", replacement = "4")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "acht", replacement = "8")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "atb", replacement = "")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "couple", replacement = "5")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "dage", replacement = "days")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "jare", replacement = "years")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "jare", replacement = "years")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "jaren", replacement = "years")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "monts", replacement = "months")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "twenty", replacement = "20")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "uncertain", replacement = "")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "moths", replacement = "months")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "probably", replacement = "")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "about", replacement = ""))%>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "montha", replacement = "months"))
+
+# digits
+POCQ <- POCQ %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "½", replacement = ".5")) %>%
+  mutate(`Duration of last illness` = str_replace(string = `Duration of last illness`, pattern = "¼", replacement = ".25"))
+
+# we mutate age to be a uniform format, creating age in days and in years
+POCQ <- POCQ %>% 
+    mutate(DOLI_days = round(as.numeric(as.period(`Duration of last illness`), "days"), 0),
+           DOLI_years = round(as.numeric(as.period(`Duration of last illness`), "years"), 2))
+# View(POCQ)
+
+# this changes all DOLI for babies who've had illness since birth to their age at death.
+POCQ <- POCQ %>% 
+  mutate(DOLI_days = ifelse(str_detect(`Duration of last illness`, pattern = "birth"), age_days, DOLI_days),
+         DOLI_years = ifelse(str_detect(`Duration of last illness`, pattern = "birth"), age_years, DOLI_years))
+
+
+```
+
+# Date of Death
+
+```{r}
+
+# POCQ <- POCQ %>% 
+#   mutate(death_date = glue("{`Day of death`}-{`Month of death`}-{`Year of death`}"),
+#          death_date = dmy(death_date))
+
+```
+
+# Date of infection
+
+```{r}
+# date of infection calculation
+POCQ <- POCQ %>% 
+  mutate(date_infection = death_date - DOLI_days)
+
+# fixing missing infection dates
+POCQ <- POCQ %>% 
+  mutate(date_infection = ifelse(test = is.na(date_infection), yes = death_date, no = date_infection)) %>% 
+  mutate(date_infection = as.Date(date_infection, origin = "1970-01-01"),
+         death_date = as.Date(death_date, origin = "1970-01-01"))
+
+```
+
+
+# In the section below we classify diseases into a broad set of classes
+
+```{r}
+
+# first, we convert the text to lower case, trim the whitespace and remove the punctiation
+POCQ <- POCQ %>% 
+    mutate(COD = tolower(`Causes of death`))
+
+# removing stopwords
+# POCQ <- POCQ %>% 
+  # mutate(COD = removeWords(COD, stopwords("english")))
+
+# words to remove
+wr <- c("verdict", "death", "acute", "due", "1", "2")
+
+POCQ <- POCQ %>% 
+  mutate(COD = str_remove(COD, paste(wr, collapse = "|")))
+
+POCQ <- POCQ %>% 
+    mutate(COD = trimws(COD),
+           COD = gsub('[[:punct:] ]+',' ',COD))
+
+# View(POCQ)
+
+# Problem is that missing values prevent the clustering - we create a "missing" category for here alone
+POCQ <- POCQ %>% 
+    mutate(COD = replace_na(COD, "missing"))
+
+
+
+```
+
+# Looking for common words in cause of death
+
+Goal is to lump similar words together.
+
+```{r}
+# unnest words
+POCQf <- POCQ %>% 
+  unnest_tokens(word, COD)
+
+# anti-join stopwords
+POCQf <- POCQf %>% 
+  anti_join(stop_words)
+  
+# count words by frequency
+wordfrequency <- POCQf %>% 
+  count(word, sort = T)
+# View(wordfrequency)
+
+# write.csv(wordfrequency, file = "data/cause_of_death_words.csv")
+
+# creating list of most popular words
+wordlist <- as.character(wordfrequency$word)
+wordlist <- wordlist[1:200]
+wordlist <- c(wordlist, "missing")
+
+
+# creating set of matches, seperate columns DON'T NEED THIS
+# POCQ$CODterm1 <- str_extract_all(POCQ$COD, 
+  # paste(wordlist, collapse = '|'), simplify = TRUE)
+
+# this is the one you want, multiple matches seperated by a comma
+POCQ$CODterms <- str_extract_all(POCQ$COD, paste(wordlist, collapse = '|')) %>% 
+  sapply(., paste, collapse = ", ")
+
+# create a value for "other"
+# first create an NA for other
+POCQ <- POCQ %>% 
+  replace_with_na(replace = list(CODterms = ""))
+# replaces the NA with "Other"
+POCQ <- POCQ %>% 
+    mutate(CODterms = replace_na(CODterms, "Other"))
+
+```
+
+# looking for common words during pandemic
+
+```{r}
+
+# unnest words
+POCQfsf <- POCQ %>% 
+  filter(death_date < ymd("1918-12-30"),
+         death_date > ymd("1918-09-27")) %>% 
+  unnest_tokens(word, COD)
+
+# anti-join stopwords
+POCQfsf <- POCQfsf %>% 
+  anti_join(stop_words)
+  
+# count words by frequency
+wordfrequency_sf <- POCQfsf %>% 
+  count(word, sort = T)
+# View(wordfrequency)
+
+# creating list of most popular words
+wordlist_sf <- as.character(wordfrequency_sf$word)
+wordlist_sf <- wordlist_sf[1:50]
+wordlist_sf <- c(wordlist_sf, "missing")
+
+
+# creating set of matches, seperate columns DON'T NEED THIS
+# POCQ$CODterm1 <- str_extract_all(POCQ$COD, 
+  # paste(wordlist, collapse = '|'), simplify = TRUE)
+
+# this is the one you want, multiple matches seperated by a comma
+POCQ$CODterms_sf <- str_extract_all(POCQ$COD, paste(wordlist_sf, collapse = '|')) %>% 
+  sapply(., paste, collapse = ", ")
+
+# create a value for "other"
+# first create an NA for other
+POCQ <- POCQ %>% 
+  replace_with_na(replace = list(CODterms_sf = ""))
+# replaces the NA with "Other"
+POCQ <- POCQ %>% 
+    mutate(CODterms_sf = replace_na(CODterms_sf, "Other"))
+
+```
+
+
+# Now we classify by group
+
+```{r}
+# First we do a dendogram
+# smaller data size of 200
+POCQ_small <- POCQ[1:200,]
+length(unique(as.character(POCQ_small$CODterms)))
+
+
+uniquedis <- unique(as.character(POCQ_small$CODterms))
+distancedis <- stringdistmatrix(uniquedis,uniquedis,method = "jw")
+rownames(distancedis) <- uniquedis
+
+hc <- hclust(as.dist(distancedis))
+plot(hc)
+rect.hclust(hc,k=20)
+```
+
+# Classification for full size dataset
+
+```{r}
+# Full Size Dataset
+# see some of the unique causes of death
+length(unique(as.character(POCQ$CODterms)))
+
+# list of unique diseases
+uniquedisterms <- unique(as.character(POCQ$CODterms))
+# calculate the distance between the strings with Jaro-Winkler algorithm
+distancedisterms <- stringdistmatrix(uniquedisterms,uniquedisterms,method = "jw")
+# give back the rownames to make it sensible
+rownames(distancedisterms) <- uniquedisterms
+# cluster as distances
+hc <- hclust(as.dist(distancedisterms))
+# puts these groups into a df of said size
+dfClust <- data.frame(uniquedisterms, cutree(hc, k=100))
+# give names to make it sensible
+names(dfClust) <- c('disease','cluster')
+
+# visualize the quantities of diseases in each group
+plot(table(dfClust$cluster))
+
+# average number of diseases per cluster
+print(paste('Average number of diseases per cluster:', mean(table(dfClust$cluster))))
+
+
+
+t <- table(dfClust$cluster)
+t <- cbind(t,t/length(dfClust$cluster))
+t <- t[order(t[,2], decreasing=TRUE),]
+p <- data.frame(factorName=rownames(t), binCount=t[,1], percentFound=t[,2])
+dfClust <- merge(x=dfClust, y=p, by.x = 'cluster', by.y='factorName', all.x=T)
+dfClust <- dfClust[rev(order(dfClust$binCount)),]
+names(dfClust) <-  c('cluster','disease_name', 'count in group', 'similarity?')
+head (dfClust[c('cluster','disease_name')],20)
+
+# write to csv so that I can look and group and then match to original dataset
+write.csv(dfClust, file = "data/dfClust_terms_all_17-10-20.csv", row.names = T)
+
+```
+
+
+# Putting the groupings and original dataset together
+
+```{r}
+# import the disease groupings
+DG <- read_excel("data/DiseaseGroupings_25-03-2020.xlsx")
+DG <- as.tibble(DG)
+names(DG) <- c('cluster','CODterms', 'diseasegroup')
+DG
+# merge together
+POCQ <- merge(x = POCQ, y = DG, by = "CODterms", all.y = T)
+
+# reorder columns
+# first, get colnames
+colnames(POCQ)
+# NB this requires concentration as it is done manually
+POCQ <- POCQ[, c(2:34, 1, 35:39)]
+
+# POCQsorted <- POCQ[, c(1, 8, 11, 29, 30, )]
+
+POCQ <- POCQ %>% 
+  arrange(ID)
+
+write.csv(POCQ, file = "data/POCQ_edit_18-04-2020.csv")
+
+```
+
+# Create a column for Spanish Influenza indicator
+
+```{r}
+
+# spanish and influenza
+SF_words <- c("respiratory", "Spanish influenza","Pneumonia","Bronchitis","Infleuzna","broncho pneumonia","consumption","whooping cough","inflammation of lungs","inflammation of the lungs","pulmonary tuberculosis","tuberculosis","phthisis","influenza pneumonia","inflammation in lungs","croup","phthisis pulmonalis","epidemic influenza","inflammation in the lungs","inflamation of lungs","spanish influenza pneumonia","flu","spanish flu","pneumonia following on an attack of influenza","pulmonary pneumonia","pneumonia influenza","inflamation of the lungs","pulmonary phthisis","inflamation in the lungs","double pneumonia","lobar pneumonia","tuberculosis Pulmonum","spanish influenza","general tuberculosis", "flu", "spanish", "epidemic", "lung", "Spaanse Griep")
+
+POCQ$SF_terms <- str_extract_all(POCQ$COD, paste(SF_words, collapse = '|')) %>% 
+  sapply(., paste, collapse = ", ")
+
+POCQ <- POCQ %>% 
+  mutate(SF_indicator = ifelse(test = nchar(SF_terms) > 2, yes = "1", no = "0"))
+
+# only spanish
+SF_only_spanish_words <- c("spanish")
+
+POCQ$SF_only_spanish_terms <- str_extract_all(POCQ$COD, paste(SF_only_spanish_words, collapse = '|')) %>% 
+  sapply(., paste, collapse = ", ")
+
+POCQ <- POCQ %>% 
+  mutate(SF_only_spanish = ifelse(test = nchar(SF_only_spanish_terms) > 2, yes = "1", no = "0"))
+
+
+# only influenza
+SF_only_influenza_words <- c("influenza")
+
+POCQ$SF_only_influenza_terms <- str_extract_all(POCQ$COD, paste(SF_only_influenza_words, collapse = '|')) %>% 
+  sapply(., paste, collapse = ", ")
+
+POCQ <- POCQ %>% 
+  mutate(SF_only_influenza = ifelse(test = nchar(SF_only_influenza_terms) > 2, yes = "1", no = "0"))
+
+```
+
+
+# Create a column for Respiratory indicator
+
+```{r}
+
+# Resp_words <- c("spanish", "influenza")
+# 
+# POCQ$Resp_terms <- str_extract_all(POCQ$COD, paste(Resp_words, collapse = '|')) %>% 
+#   sapply(., paste, collapse = ", ")
+# 
+# POCQ <- POCQ %>% 
+#   mutate(Resp_indicator = ifelse(test = nchar(Resp_terms) > 2, yes = "1", no = "0"))
+
+
+```
+
+```{r saving data}
+
+write.csv(POCQ, file = "data/df_24-11-2020.csv", col.names = FALSE)
+
+st <- format(Sys.time(), "%Y-%m-%d-%I-%M-%p")
+write_rds(POCQ, paste0("data/df_", st, ".rds"))
+
+```
+
+
+```{r quick graph for Johan}
+# to compare with COVID
+Covid_comparison <- POCQ %>% 
+  filter(death_date < ymd("1918-12-31"),
+         death_date > ymd("1918-09-27"),
+         SF_indicator == "1") %>% 
+  group_by(death_date) %>%
+  mutate(count = n()) %>% 
+  arrange(death_date) %>% 
+  select(death_date, count)
+
+write.csv(Covid_comparison, file = "data/covid_comparison_03-05-2020.csv")
+
+```
+
+
+
+# quick exploration
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(hrbrthemes)
+library(viridis)
+library(lubridate)
+
+# Import data
+POCQ <- read_excel("data/POCQ 1915-1920_CLEAN_v14-25-03-20.xlsx")
+# colnames(POCQ)
+# remove below as need be
+POCQ <- POCQ[, c(2:40)]
+
+# Replace NA with R-parsed NA. NB this takes a while.
+POCQ <- POCQ %>% 
+  replace_with_na_all(condition = ~. == "NA")
+
+# Ensures that new columns are read as numeric
+POCQ <- POCQ %>% 
+  mutate(age_days = as.numeric(age_days),
+         age_years = as.numeric(age_years),
+         DOLI_days = as.numeric(DOLI_days),
+         DOLI_years = as.numeric(DOLI_years))
+
+# Ensures that sex, race and diseasegroup are seen as factors
+POCQ <- POCQ %>% 
+  mutate(Sex = as.factor(tolower(Sex)),
+         Race = as.factor(Race),
+         diseasegroup = as.factor(diseasegroup))
+
+# Ensure that death_date is seen as date
+POCQ <- POCQ %>% 
+  mutate(death_date = lubridate::ymd(death_date))
+
+# select variables
+df <- POCQ %>% 
+  select(ID, Town, Sex, Race, COD, CODterms, diseasegroup, age_days, age_years, DOLI_days, DOLI_years, death_date, `Year of death`, Location)
+
+df <- df %>% 
+  mutate(death_date = as.Date(death_date))
+
+# create a dummy for Pre-and Post October 1918
+df <- df %>% 
+  mutate(SF = if_else(condition = death_date < ymd("1918/10/01"), true = 0, false = 0)) %>% 
+  mutate(SF_date = if_else(condition = death_date < ymd("1918/10/01"), true = "Pre-October 1918", false = "Post-October 1918")) %>% 
+  mutate(SF_order = reorder(SF_date, SF))
+
+df <- df %>% 
+  mutate(disease_bin = if_else(diseasegroup == "Influenza / Spanish Influenza", true = 1, false = 0)) %>% 
+  mutate(disease_bin_name = if_else(diseasegroup == "Influenza / Spanish Influenza", true = "Spanish Influenza", false = "Other Disease")) %>% 
+  mutate(disease_bin_order = reorder(disease_bin_name, disease_bin))
+
+df <- df %>% 
+  mutate(y1918 = if_else(condition = `Year of death` == 1918, true = 1, false = 0))
+
+df <- df %>% 
+  mutate(mmn = `Medical man's name`)
+
+none <- c("No medical man in attendance|None|Nil|No doctor|No Dr|No Medical Attendance|no Doctor|none")
+
+df <- POCQ %>% 
+  mutate(mmn = `Medical man's name`) %>% 
+  mutate(mmn = str_replace_all(mmn, none, "none"))
+
+df %>% 
+  count(mmn, sort = T)
+
+df <- df %>%
+  mutate(doc_bin = recode(mmn, "none" = 0, .default = 1))
+
+
+# Violin plot by date
+df %>% 
+  # this drops all NAs from the plot
+  drop_na() %>% 
+  ggplot(aes(age_years, Race, fill = Race)) +
+  geom_violin(alpha = .5)+
+  geom_boxplot(outlier.alpha = .2, width = .05, fill = "white") +
+  coord_flip() +
+  facet_wrap(. ~ SF_order) +
+  theme_minimal() +
+  theme(legend.position="none") +
+  # geom_vline(xintercept = 18, lty = 2) +
+  labs(title = "Boxplot and violin plot of age at death",
+       subtitle = "By race",
+       y = "",
+       x = "Age in years")
+
+# tiff("test.tiff", units="in", width=10, height=5, res=300)
+
+# Violin plot by disease type
+subset(df, y1918 == 1) %>% 
+  # this drops all NAs from the plot
+  drop_na() %>% 
+  ggplot(aes(age_years, Race, fill = Race)) +
+  geom_violin(alpha = .5)+
+  geom_boxplot(outlier.alpha = .2, width = .05, fill = "white") +
+  coord_flip() +
+  facet_wrap(. ~ disease_bin_order) +
+  theme_minimal() +
+  theme(legend.position="none") +
+  # geom_vline(xintercept = 18, lty = 2) +
+  labs(title = "Boxplot and violin plot of age at death",
+       subtitle = "By race, year 1918",
+       y = "",
+       x = "Age in years")
+
+# insert ggplot code
+dev.off()
+
+
+df %>% 
+  ggplot(aes(DOLI_days, Sex)) +
+  geom_boxplot()+
+  coord_flip() +
+  scale_x_log10() +
+  facet_wrap(. ~ Race, scales = "free_y")
+
+
+# Age groups
+df <- df %>%   
+  mutate(age_years_cats = cut_interval(age_years, length = 5)) %>% 
+  mutate(midpoints = as.numeric(age_years_cats)) %>% 
+  mutate(midpoints = midpoints -1)
+
+df %>% 
+  arrange(desc(as.numeric(age_years_cats))) %>% 
+  drop_na() %>% 
+  ggplot(aes(x = age_years_cats, fill = Sex)) +
+  geom_bar() +
+  scale_y_continuous() +
+  facet_wrap(.~ Race) +
+  coord_flip()
+
+lbls <- c("0-5", 
+          # "6-10", 
+          "11-15", 
+          # "16-20", 
+          "21-25", 
+          # "26-30", 
+          "31-35", 
+          # "36-40", 
+          "41-45", 
+          # "46-50", 
+          "51-55", 
+          # "56-60", 
+          "61-65", 
+          # "66-70", 
+          "71-75", 
+          # "76-80", 
+          "81-85", 
+          # "86-90", 
+          "91-95", 
+          # "96-100", 
+          "101-105",
+          # "106-110",
+          "111-115")
+
+# Pyramid by race and sex
+# this one works, but it's a horrible workaround.
+df %>% 
+  mutate(age_years_cats = fct_reorder(age_years_cats, midpoints, min)) %>% 
+  ggplot(aes(x = midpoints, fill = Sex)) +
+  geom_bar(data = subset(df, Sex == "male")) +
+  geom_bar(data = subset(df, Sex == "female"), aes(y = ..count..*(-1))) +
+  facet_wrap(.~ Race) +
+  scale_x_continuous(breaks = seq(0,22,2), labels = lbls) + 
+  scale_y_continuous(breaks = seq(-2000, 2000, 1000),
+                     labels = c("2000",  "1000",   "0", "1000",  "2000")) +
+  labs(title = "Age pyramid of age at death",
+       subtitle = "By race and sex",
+       y = "Number of citizens",
+       x = "Age groups") +
+  coord_flip()
+```
+
+
+```{r date subset}
+
+df <- subset(df, death_date > ymd("1918/06/01") & death_date < ymd("1920/01/01") )
+df_SF <- subset(df, diseasegroup == "Influenza / Spanish Influenza")
+
+df %>% 
+  # mutate(disease_count = fct_count(diseasegroup)/sum(fct_count(diseasegroup))) %>% 
+  ggplot(aes(x = death_date)) +
+  geom_line(stat = "count")
+  
+# Here we draw a plot for deaths by disease type 
+df %>% 
+  ggplot(aes(x = death_date, fill = diseasegroup))+
+  geom_histogram()
+# Here we draw a plot for deaths by disease type 
+
+df %>% 
+  ggplot(aes(x = death_date, fill = diseasegroup))+
+  geom_histogram(binwidth = 200)
+
+df_SF %>% 
+  ggplot(aes(death_date, fill = Race)) +
+  geom_histogram(binwidth = 5) +
+  facet_wrap(. ~ Town, nrow = 1,
+             as.table = TRUE) +
+  theme_light() +
+  scale_x_date(labels = date_format("%m-%Y")) +
+  labs(title = "Histogram of deaths from Spanish Influenza",
+       subtitle = "By town and race",
+       y = "# of deaths")
+
+# duration of illness
+df_SF <- df_SF %>% 
+  # begginning of illness BOI
+  mutate(as.Date(BOI = ymd(death_date) - DOLI_days))
+
+df_SF %>% 
+  ggplot(aes(BOI, fill = Race)) +
+  geom_histogram(binwidth = 5) +
+  facet_wrap(. ~ Town, nrow = 1)
+
+```
+
+
+### Doctor Name Cleaning
+
+```{r Doctor name cleaning}
+# import data
+DoctorNames <- read_excel("data/DoctorNames_Kuruman.xlsx")
+DoctorNames <- as.tibble(DoctorNames)
+
+# create new name to examine
+DoctorNames <- DoctorNames %>% 
+  mutate(MMN = Name) %>% 
+  mutate(MMN = tolower(MMN))
+
+DoctorNames <- DoctorNames %>% 
+  # remove text within brackets
+  mutate(MMN = str_replace(string = MMN, pattern = " \\(.*\\)", replacement = "")) %>% 
+  # remove text after square brackets
+  mutate(MMN = str_replace(string = MMN, pattern = "\\[.*", replacement = "")) %>% 
+  # remove text after "who"
+  mutate(MMN = str_replace(string = MMN, pattern = "who .*", replacement = "")) %>% 
+  # remove text after "saw"
+  mutate(MMN = str_replace(string = MMN, pattern = "saw .*", replacement = "")) %>% 
+  # remove text after "certificate"
+  mutate(MMN = str_replace(string = MMN, pattern = "certificate .*", replacement = "")) %>%
+  # remove text after "held"
+  mutate(MMN = str_replace(string = MMN, pattern = "held .*", replacement = "")) %>%
+  # remove text after "hold"
+  mutate(MMN = str_replace(string = MMN, pattern = "hold.*", replacement = "")) %>%
+  # remove text after "attend"
+  mutate(MMN = str_replace(string = MMN, pattern = "atten.*", replacement = "")) %>% 
+  # remove text after "view"
+  mutate(MMN = str_replace(string = MMN, pattern = "view.*", replacement = "")) %>% 
+  # remove text after "examination"
+  mutate(MMN = str_replace(string = MMN, pattern = "examin.*", replacement = "")) %>% 
+  # remove text after "suppl"
+  mutate(MMN = str_replace(string = MMN, pattern = "suppl.*", replacement = "")) %>% 
+  # remove text after "post mortem"
+  mutate(MMN = str_replace(string = MMN, pattern = "post mortem.*", replacement = ""))
+
+# Indicator of district surgeon
+DoctorNames <- DoctorNames %>% 
+  mutate(DS = str_detect(string = MMN, pattern = "dist"))
+
+# Remove words 
+# replaced "D S" and "D.S" in excel
+wr <- c("D S", "District Surgeon", "Distr Surgeon", "Distr Surg", "Dist Surg", "Dist. Surg", "Dist Surgeon", "D.S.", "Surgeon",
+        "D R", "Dr", "Dr.",
+        "of",
+        "Dutch Reformed Church",
+        "medicine", "medical", "gave Medicine", "medicine")
+
+wr <- tolower(wr)
+DoctorNames <- DoctorNames %>% 
+  mutate(MMN = removeWords(MMN, wr))
+
+# remove towns
+towns <- c("Somerset West",
+           "Cape Town",
+           "Paarl",
+           "Stellenbosch",
+           "Cathcart",
+           "Cradock",
+           "Queenstown",
+           "Durbanville",
+           "Wellington",
+           "French Hoek",
+           "Franschoek",
+           "Calitzdorp",
+           "Malmesbury",
+           "Oudtshoorn",
+           "Whittlesea",
+           "Krugersdorp",
+           "Tarkastad",
+           "Queenstown",
+           "Willowmore",
+           "Somerset East",
+           "Mafeking",
+           "Vryburg",
+           "Frensch Hoek",
+           "Durbancille",
+           ",")
+# making lowercase
+towns <- tolower(towns)
+# remove
+DoctorNames <- DoctorNames %>% 
+  mutate(MMN = removeWords(MMN, towns))
+
+# NB must trim whitespace afterwards and capitalize
+DoctorNames <- DoctorNames %>% 
+  # NB the & was changed to and in Excel
+  mutate(MMN = str_replace(string = MMN, pattern = "[^[:alnum:][:space:]']", replacement = "")) %>%
+  mutate(MMN = str_replace(MMN, "[[:punct:][:blank:]]+", " ")) %>% 
+  mutate(MMN = trimws(MMN)) %>% 
+  mutate(MMN = str_to_title(MMN))
+
+# export
+write.csv(DoctorNames, file = "data/DocNames_edit_2.csv", row.names = F)
+
+
+# remove any strage contents
+DoctorNames_words <- DoctorNames[ ,4]
+
+DoctorNames_words <- DoctorNames_words %>% 
+  unnest_tokens(word, MMN)
+
+DoctorNames_words <- DoctorNames_words %>%
+  
+subset(DoctorNames_words$word, nchar(as.character(word)) > 3)
+
+DoctorNames_words %>% 
+  filter(nchar(as.character(word)) > 3) %>% 
+    count(word, sort = T) %>% 
+  filter(n > 5) %>% 
+  mutate(word = reorder(word, n)) %>% 
+  ggplot(aes(word, n)) +
+  geom_col()+
+  coord_flip()
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Pyramid by sex and town
+# this one works, but it's a horrible workaround.
+g <- df %>% 
+  drop_na() %>% 
+  mutate(age_years_cats = fct_reorder(age_years_cats, midpoints, min)) %>% 
+  drop_na() %>% 
+  ggplot(aes(x = midpoints, fill = Sex)) +
+  geom_bar(data = subset(df, Sex == "male" & SF == 1)) +
+  geom_bar(data = subset(df, Sex == "female" & SF == 1), aes(y = ..count..*(-1))) +
+  facet_wrap(.~ Town) +
+  scale_x_continuous(breaks = seq(0,22,2), labels = lbls) + 
+  scale_y_continuous(breaks = seq(-2000, 2000, 1000),
+                     labels = c("2000",  "1000",   "0", "1000",  "2000")) +
+  labs(title = "Age pyramid of age at death",
+       subtitle = "By sex and town",
+       y = "Number of citizens",
+       x = "Age groups") +
+  coord_flip()
+
+g + 
+  geom_bar(data = subset(df, Sex == "male" & SF == 0), alpha = .5, ) +
+  geom_bar(data = subset(df, Sex == "female" & SF == 0), aes(y = ..count..*(-1)), alpha = .5) +
+  facet_wrap(.~ Town) 
+
+# try for time series plot
+df %>%
+  ggplot(aes(x = death_date, y = count(diseasegroup))) +
+           geom_line()
+
+
+
+
+
+ggplot(email_campaign_funnel, aes(x = Stage, y = Users, fill = Gender)) +   # Fill column
+                              geom_bar(stat = "identity", width = .6) +   # draw the bars
+                              scale_y_continuous(breaks = brks,   # Breaks
+                                                 labels = lbls) + # Labels
+                              coord_flip() +  # Flip axes
+                              labs(title="Email Campaign Funnel") +
+                              theme_tufte() +  # Tufte theme from ggfortify
+                              theme(plot.title = element_text(hjust = .5), 
+                                    axis.ticks = element_blank()) +   # Centre plot title
+                              scale_fill_brewer(palette = "Dark2")  # Color palette
+  
+  
+df %>% 
+  arrange(desc(DOLI_years))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Practice with using Stringdist
+NB stringdist is case sensitive - we can make everything lower case
+
+```{r}
+p_load(RCurl, stringdist)
+
+# getting data, more real world than usual datasets
+urlfile <-"https://raw.githubusercontent.com/hadley/fueleconomy/master/data-raw/vehicles.csv"
+x <- getURL(urlfile, ssl.verifypeer = FALSE)
+vehicles <- read.csv(textConnection(x))
+
+# size of the data
+nrow(vehicles)
+
+length(unique(vehicles$model))
+
+# smaller data
+vehicles_small <- vehicles[1:100,]
+head(unique(as.character(vehicles_small$model)))
+
+
+
+# from the tutorial
+p_load(stringdist)
+
+uniquemodels <- unique(as.character(vehicles_small$model))
+distancemodels <- stringdistmatrix(uniquemodels,uniquemodels,method = "jw")
+rownames(distancemodels) <- uniquemodels
+hc <- hclust(as.dist(distancemodels))
+plot(hc)
+rect.hclust(hc,k=20)
+
+```
+
+
+# In the section below we classify diseases into a broad set of classes
+
+```{r}
+
+# first, we convert the text to lower case, trim the whitespace and remove the punctiation
+POCQ <- POCQ %>% 
+    mutate(`Causes of death` = tolower(`Causes of death`),
+           `Causes of death` = trimws(`Causes of death`),
+           `Causes of death` = gsub('[[:punct:] ]+',' ',`Causes of death`))
+
+p_load(tm)
+POCQ <- tm_map(POCQ$`Causes of death`, removeWords, stopwords("english"))
+
+tm::removeWords(POCQ$`Causes of death`, stopwords("english"))
+
+# trying for myself now with smaller size
+
+# smaller data size of 200
+POCQ_small <- POCQ[1:200,]
+head(unique(as.character(POCQ_small$`Causes of death`)))
+
+
+uniquedis <- unique(as.character(POCQ_small$`Causes of death`))
+distancedis <- stringdistmatrix(uniquedis,uniquedis,method = "jw")
+rownames(distancedis) <- uniquedis
+
+hc <- hclust(as.dist(distancedis))
+plot(hc)
+rect.hclust(hc,k=50)
+
+# Full Size Dataset
+# see some of the unique causes of death
+head(unique(as.character(POCQ$`Causes of death`)))
+
+# list of unique diseases
+uniquedis <- unique(as.character(POCQ$`Causes of death`))
+# calculate the distance between the strings
+distancedis <- stringdistmatrix(uniquedis,uniquedis,method = "jw")
+# give back the rownames to make it sensible
+rownames(distancedis) <- uniquedis
+# cluster as distances
+hc <- hclust(as.dist(distancedis))
+# puts these groups into a df of said size
+dfClust <- data.frame(uniquedis, cutree(hc, k=200))
+# give names to make it sensible
+names(dfClust) <- c('disease','cluster')
+
+# visualize the quantities of diseases in each group
+plot(table(dfClust$cluster))
+
+# average number of diseases per cluster
+print(paste('Average number of diseases per cluster:', mean(table(dfClust$cluster))))
+
+
+
+t <- table(dfClust$cluster)
+t <- cbind(t,t/length(dfClust$cluster))
+t <- t[order(t[,2], decreasing=TRUE),]
+p <- data.frame(factorName=rownames(t), binCount=t[,1], percentFound=t[,2])
+dfClust <- merge(x=dfClust, y=p, by.x = 'cluster', by.y='factorName', all.x=T)
+dfClust <- dfClust[rev(order(dfClust$binCount)),]
+names(dfClust) <-  c('cluster','diseasename')
+head (dfClust[c('cluster','diseasename')],20)
+
+# write to csv so that I can look and group and then match to original dataset
+write.csv2(dfClust, file = "data/dfClust.csv", row.names = T)
+
+
+```
+
+# Appendix
+
+```{r}
+# Testing
+
+# smaller data size of 200
+POCQ_small <- POCQ[1:200,]
+length(unique(as.character(POCQ_small$COD)))
+
+
+uniquedis <- unique(as.character(POCQ_small$COD))
+distancedis <- stringdistmatrix(uniquedis,uniquedis,method = "jw")
+rownames(distancedis) <- uniquedis
+
+hc <- hclust(as.dist(distancedis))
+plot(hc)
+rect.hclust(hc,k=20)
+
+# Full Size Dataset
+# see some of the unique causes of death
+length(unique(as.character(POCQ$COD)))
+
+# list of unique diseases
+uniquedis <- unique(as.character(POCQ$COD))
+# calculate the distance between the strings
+distancedis <- stringdistmatrix(uniquedis,uniquedis,method = "jw")
+# give back the rownames to make it sensible
+rownames(distancedis) <- uniquedis
+# cluster as distances
+hc <- hclust(as.dist(distancedis))
+# puts these groups into a df of said size
+dfClust <- data.frame(uniquedis, cutree(hc, k=200))
+# give names to make it sensible
+names(dfClust) <- c('disease','cluster')
+
+# visualize the quantities of diseases in each group
+plot(table(dfClust$cluster))
+
+# average number of diseases per cluster
+print(paste('Average number of diseases per cluster:', mean(table(dfClust$cluster))))
+
+
+
+t <- table(dfClust$cluster)
+t <- cbind(t,t/length(dfClust$cluster))
+t <- t[order(t[,2], decreasing=TRUE),]
+p <- data.frame(factorName=rownames(t), binCount=t[,1], percentFound=t[,2])
+dfClust <- merge(x=dfClust, y=p, by.x = 'cluster', by.y='factorName', all.x=T)
+dfClust <- dfClust[rev(order(dfClust$binCount)),]
+names(dfClust) <-  c('cluster','diseasename', 'count in group', 'similarity?')
+head (dfClust[c('cluster','diseasename')],20)
+
+# write to csv so that I can look and group and then match to original dataset
+write.csv2(dfClust, file = "data/dfClustjw.csv", row.names = T)
+
+```
+
+
+
+
