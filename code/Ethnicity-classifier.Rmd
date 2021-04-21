@@ -1,0 +1,111 @@
+---
+title: "ethnicity-classifier"
+author: "JJayes"
+date: "21/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+
+library(tidyverse)
+remotes::install_github("tidymodels/parsnip")
+library(tidymodels)
+library(textrecipes)
+library(themis)
+
+```
+
+## Description:
+
+Using subword features in machine learning for text classification.
+
+## Purpose
+
+In the course of publishing an exciting article about the Spanish flu in South Africa I had a difficult task. I was attempting to collapse the recorded ethnicity variable in the data set down to just three categories, black, coloured and white. 
+
+My methodology at the time was to classify by hand each of the more than 30,000 observations. I had a lot of time during the lock down... 
+
+### Need to put in a section about racial classification in South Africa. 
+
+Now I think that my coding skills have improved and I want to see if I can train a model that looks at the recorded ethnicity on the death certificates and is able to learn which features are associated with black or coloured individuals. I have excluded the white individuals from the classification for two reasons. The first is a class imbalance problem. They are smaller in number of white individuals in my dataset. The second is that the classification of ethnicity for white individuals was much easier to write regex for -- most were classed as "From England" or "European" or the like.
+
+```{r}
+
+df <- read_rds("data/classification.rds")
+
+```
+
+What does the data look like?
+
+```{r}
+
+df %>% count(race, sort = T)
+
+head(df %>% sample_n(6))
+
+```
+
+### Traning and testing data, 
+
+```{r}
+set.seed(123)
+
+initial_split <- df %>% initial_split(strata = race)
+
+df_train <- training(initial_split)
+df_test <- testing(initial_split)
+
+df_folds <- vfold_cv(df_train, strata = race)
+
+```
+
+### Feature engineering
+
+CAN TUNE THE VOCAB SIZE USING TUNE FUNCTION
+
+```{r}
+# p_load(textrecipes, themis)
+
+classifcation_rec <- recipe(race ~ ethnicity_as_recorded, data = df_train) %>% 
+    step_tokenize(ethnicity_as_recorded, 
+                  engine = "tokenizers.bpe",
+                  training_options = list(vocab_size = 200)) %>% 
+    step_tokenfilter(ethnicity_as_recorded, max_tokens = 200) %>% 
+    step_tf(ethnicity_as_recorded) %>% 
+    step_normalize(all_predictors()) %>% 
+    step_smote(race)
+
+classifcation_rec %>% prep() %>% bake(new_data = NULL)
+
+```
+
+Using the `tokenizers.bpe` (where bpe stands for Byte-Pair Encoding) argument means that instead of breaking down our words into characters, the tokenizer algorithm will iteratively merge together frequently occurring subword pairs to find sub-words that are important in your dataset. 
+
+<aside>
+[Hugging Face](https://huggingface.co/transformers/tokenizer_summary.html)
+</aside>
+
+It is helpful in this case as we get a sweet spot between character level and word level information. Subword information like this is important in NLP models. Further, sub-word mdoels can handle new/unknown words at prediction time, which bag of words models cannot. 
+
+### Make a model
+
+We will use a linear support vector machine. It works well with text. 
+
+```{r}
+svm_spec <- svm_linear() %>% 
+    set_mode("classification") %>% 
+    set_engine("LiblineaR")
+```
+
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
