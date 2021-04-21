@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = F, warning = F, message = F)
 
 library(tidyverse)
 remotes::install_github("tidymodels/parsnip")
+library(parsnip)
 library(tidymodels)
 library(textrecipes)
 library(themis)
@@ -34,6 +35,8 @@ Now I think that my coding skills have improved and I want to see if I can train
 
 df <- read_rds("data/classification.rds")
 
+df <- df %>% 
+    mutate(ethnicity_as_recorded = str_squish(ethnicity_as_recorded))
 ```
 
 What does the data look like?
@@ -90,22 +93,120 @@ It is helpful in this case as we get a sweet spot between character level and wo
 
 ### Make a model
 
-We will use a linear support vector machine. It works well with text. 
+We will use a linear support vector machine. It works well with text.
 
 ```{r}
 svm_spec <- svm_linear() %>% 
     set_mode("classification") %>% 
     set_engine("LiblineaR")
+
+svm_spec
+```
+
+This is a good linear option for text
+
+```{r}
+wf <- workflow() %>% 
+    add_recipe(classifcation_rec) %>% 
+    add_model(svm_spec)
+
+
+```
+
+Because the tuning parameters do not have a huge effect, we can skip the tuning step and fit the model to the folds of our training data. 
+
+```{r}
+
+res <- fit_resamples(
+    wf, 
+    df_folds,
+    metrics = metric_set(accuracy, sens, spec)
+)
+
+```
+
+
+```{r}
+collect_metrics(res)
+
+```
+
+### Wow!
+
+99 percent accuracy!
+
+### Now we fit on the training data and evaluate on the testing data
+
+```{r}
+
+final_fit <- last_fit(wf, initial_split,
+         metrics = metric_set(accuracy, sens, spec))
+
+collect_metrics(final_fit)
+
+```
+
+### Confusion matrix
+
+Pretty good!
+
+```{r}
+collect_predictions(final_fit) %>% 
+    conf_mat(race, .pred_class) %>% 
+    autoplot(type = "heatmap")
+
+```
+
+Since this is a linear model we can get out the features
+
+```{r}
+
+fit <- pull_workflow_fit(final_fit$.workflow[[1]])
+
+liblinear_obj <- fit$fit$W
+
+liblinear_df <- tibble(term = colnames(liblinear_obj),
+                       estimate = liblinear_obj[1,])
+
+liblinear_df
+
+```
+
+So here we have the subwords and the estimate of it's effect.
+
+More black.
+
+```{r}
+liblinear_df %>% 
+    arrange(estimate)
+```
+
+More coloured
+
+```{r}
+liblinear_df %>% 
+    arrange(-estimate)
+
 ```
 
 
 ```{r}
 
+words <- liblinear_df %>% 
+    filter(term != "Bias") %>% 
+    group_by(estimate > 0) %>% 
+    slice_max(abs(estimate), n = 15) %>% 
+    ungroup() %>% 
+    mutate(term = str_remove(term, "tf_ethnicity_as_recorded_"))
+
+words %>% 
+    mutate(term = str_extract(term, "\\w.*"),
+           term = str_to_upper(term)) %>% 
+    filter(!term %in% c("H")) %>% 
+    ggplot(aes(estimate, fct_reorder(term, estimate), fill = estimate > 0)) +
+    geom_col(show.legend = F) +
+    labs(y = "Words and sub-words")
 
 ```
 
-```{r}
-
-
-```
-
+Classified race by ethnicity. Not too bad class imbalance. Good results.
